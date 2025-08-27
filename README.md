@@ -1,0 +1,1 @@
+# Tema_crossover_ExpertAdvisor
