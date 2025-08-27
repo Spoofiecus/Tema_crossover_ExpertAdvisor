@@ -12,7 +12,8 @@
 //--- input parameters
 input int                FastTEMAPeriod = 57;      // Fast TEMA Period
 input int                SlowTEMAPeriod = 36;      // Slow TEMA Period
-input int                TrendMAPeriod = 6;      // Trend MA Period
+input int                ADXPeriod = 14;         // ADX Period
+input int                ADXThreshold = 25;      // ADX Trend Threshold
 input ENUM_APPLIED_PRICE AppliedPrice = PRICE_CLOSE; // Applied Price
 input double             LotSize = 0.01;         // Lot Size
 input int                StopLossPips = 150;      // Stop Loss in Pips
@@ -23,10 +24,10 @@ input int                MagicNumber = 556677;   // Magic Number
 CTrade  trade;
 int     fast_tema_handle;
 int     slow_tema_handle;
-int     trend_ma_handle;
+int     adx_handle;
 double  fast_tema_buffer[2];
 double  slow_tema_buffer[2];
-double  trend_ma_buffer[1];
+double  adx_buffer[1];
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -40,9 +41,9 @@ int OnInit()
 //--- get indicator handles
    fast_tema_handle = iTEMA(_Symbol, _Period, FastTEMAPeriod, 0, AppliedPrice);
    slow_tema_handle = iTEMA(_Symbol, _Period, SlowTEMAPeriod, 0, AppliedPrice);
-   trend_ma_handle = iMA(_Symbol, _Period, TrendMAPeriod, 0, MODE_SMA, PRICE_CLOSE);
+   adx_handle = iADX(_Symbol, _Period, ADXPeriod);
 
-   if(fast_tema_handle == INVALID_HANDLE || slow_tema_handle == INVALID_HANDLE || trend_ma_handle == INVALID_HANDLE)
+   if(fast_tema_handle == INVALID_HANDLE || slow_tema_handle == INVALID_HANDLE || adx_handle == INVALID_HANDLE)
      {
       printf("Error creating indicators");
       return(INIT_FAILED);
@@ -59,7 +60,7 @@ void OnDeinit(const int reason)
 //--- release indicator handles
    IndicatorRelease(fast_tema_handle);
    IndicatorRelease(slow_tema_handle);
-   IndicatorRelease(trend_ma_handle);
+   IndicatorRelease(adx_handle);
   }
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
@@ -79,7 +80,7 @@ void OnTick()
 //--- get indicator values for the last completed bar
    if(CopyBuffer(fast_tema_handle, 0, 1, 2, fast_tema_buffer) != 2 ||
       CopyBuffer(slow_tema_handle, 0, 1, 2, slow_tema_buffer) != 2 ||
-      CopyBuffer(trend_ma_handle, 0, 1, 1, trend_ma_buffer) != 1)
+      CopyBuffer(adx_handle, 0, 1, 1, adx_buffer) != 1) // 0 is the main ADX line
      {
       printf("Error copying indicator buffers");
       return;
@@ -109,8 +110,11 @@ void OnTick()
 // buffer[1] = value on the bar before the most recently completed bar
 // buffer[0] = value on the most recently completed bar
 
-//--- check for buy signal (Fast TEMA crosses above Slow TEMA, and price is above Trend MA)
-   if(fast_tema_buffer[1] <= slow_tema_buffer[1] && fast_tema_buffer[0] > slow_tema_buffer[0] && close_price > trend_ma_buffer[0])
+//--- Trend condition: ADX must be above the threshold
+   bool is_trending = adx_buffer[0] > ADXThreshold;
+
+//--- check for buy signal (Fast TEMA crosses above Slow TEMA, and ADX is above threshold)
+   if(fast_tema_buffer[1] <= slow_tema_buffer[1] && fast_tema_buffer[0] > slow_tema_buffer[0] && is_trending)
      {
       if(!is_trade_open)
         {
@@ -123,8 +127,8 @@ void OnTick()
         }
      }
 
-//--- check for sell signal (Fast TEMA crosses below Slow TEMA, and price is below Trend MA)
-   if(fast_tema_buffer[1] >= slow_tema_buffer[1] && fast_tema_buffer[0] < slow_tema_buffer[0] && close_price < trend_ma_buffer[0])
+//--- check for sell signal (Fast TEMA crosses below Slow TEMA, and ADX is above threshold)
+   if(fast_tema_buffer[1] >= slow_tema_buffer[1] && fast_tema_buffer[0] < slow_tema_buffer[0] && is_trending)
      {
       if(!is_trade_open)
         {
