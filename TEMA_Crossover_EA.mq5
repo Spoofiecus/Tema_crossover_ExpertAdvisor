@@ -16,7 +16,8 @@ input int                ADXPeriod = 14;         // ADX Period
 input int                ADXThreshold = 25;      // ADX Trend Threshold
 input ENUM_APPLIED_PRICE AppliedPrice = PRICE_CLOSE; // Applied Price
 input double             LotSize = 0.01;         // Lot Size
-input int                FibonacciLookback = 50; // Fibonacci Lookback Period
+input int                StopLossPips = 150;      // Stop Loss in Pips
+input int                TakeProfitPips = 150;   // Take Profit in Pips
 input int                MagicNumber = 556677;   // Magic Number
 
 //--- global variables
@@ -117,25 +118,12 @@ void OnTick()
      {
       if(!is_trade_open)
         {
-         //--- Fibonacci SL/TP Calculation
-         MqlRates rates[];
-         if(CopyRates(_Symbol, _Period, 1, FibonacciLookback, rates) > 0)
-           {
-            double swing_high = rates[0].high;
-            double swing_low = rates[0].low;
-            for(int i = 1; i < ArraySize(rates); i++)
-              {
-               if(rates[i].high > swing_high) swing_high = rates[i].high;
-               if(rates[i].low < swing_low) swing_low = rates[i].low;
-              }
-            double swing_range = swing_high - swing_low;
-
-            double price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-            double sl = swing_low; // Set SL at the swing low
-            double tp = price + (swing_range * 1.618); // TP as an extension
-
-            trade.Buy(LotSize, _Symbol, price, sl, tp, "TEMA Crossover Buy");
-           }
+         double price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         double sl = price - StopLossPips * _Point;
+         double tp = price + TakeProfitPips * _Point;
+         if(StopLossPips == 0) sl = 0;
+         if(TakeProfitPips == 0) tp = 0;
+         trade.Buy(LotSize, _Symbol, price, sl, tp, "TEMA Crossover Buy");
         }
      }
 
@@ -144,25 +132,12 @@ void OnTick()
      {
       if(!is_trade_open)
         {
-         //--- Fibonacci SL/TP Calculation
-         MqlRates rates[];
-         if(CopyRates(_Symbol, _Period, 1, FibonacciLookback, rates) > 0)
-           {
-            double swing_high = rates[0].high;
-            double swing_low = rates[0].low;
-            for(int i = 1; i < ArraySize(rates); i++)
-              {
-               if(rates[i].high > swing_high) swing_high = rates[i].high;
-               if(rates[i].low < swing_low) swing_low = rates[i].low;
-              }
-            double swing_range = swing_high - swing_low;
-
-            double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-            double sl = swing_high; // Set SL at the swing high
-            double tp = price - (swing_range * 1.618); // TP as an extension
-
-            trade.Sell(LotSize, _Symbol, price, sl, tp, "TEMA Crossover Sell");
-           }
+         double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         double sl = price + StopLossPips * _Point;
+         double tp = price - TakeProfitPips * _Point;
+         if(StopLossPips == 0) sl = 0;
+         if(TakeProfitPips == 0) tp = 0;
+         trade.Sell(LotSize, _Symbol, price, sl, tp, "TEMA Crossover Sell");
         }
      }
   }
