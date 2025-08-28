@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2025, MetaQuotes Software Corp."
 #property link      "https://www.mql5.com"
-#property version   "1.00"
+#property version   "1.01"
 
 #include <Trade/Trade.mqh>
 
@@ -24,9 +24,9 @@ CTrade  trade;
 int     fast_tema_handle;
 int     slow_tema_handle;
 int     trend_ma_handle;
-double  fast_tema_buffer[2];
-double  slow_tema_buffer[2];
-double  trend_ma_buffer[1];
+double  fast_tema_buffer[3];
+double  slow_tema_buffer[3];
+double  trend_ma_buffer[2];
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -66,20 +66,19 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
   {
-//--- static variable to store the bar time. This ensures the logic runs only once per bar.
-   static datetime last_bar_time = 0;
-   datetime current_bar_time = (datetime)SeriesInfoInteger(_Symbol, _Period, SERIES_LASTBAR_DATE);
-
-   if(current_bar_time == last_bar_time)
+//--- use a static variable for bar count to ensure logic runs once per bar
+   static int bars = 0;
+   if(bars == Bars(_Symbol, _Period))
      {
       return; // Not a new bar, do nothing
      }
-   last_bar_time = current_bar_time;
+   bars = Bars(_Symbol, _Period);
 
-//--- get indicator values for the last completed bar
-   if(CopyBuffer(fast_tema_handle, 0, 1, 2, fast_tema_buffer) != 2 ||
-      CopyBuffer(slow_tema_handle, 0, 1, 2, slow_tema_buffer) != 2 ||
-      CopyBuffer(trend_ma_handle, 0, 1, 1, trend_ma_buffer) != 1)
+//--- get indicator values. We copy 3 bars starting from the current one (bar 0)
+//--- to ensure the indicator has time to calculate the values for the completed bars.
+   if(CopyBuffer(fast_tema_handle, 0, 0, 3, fast_tema_buffer) != 3 ||
+      CopyBuffer(slow_tema_handle, 0, 0, 3, slow_tema_buffer) != 3 ||
+      CopyBuffer(trend_ma_handle, 0, 0, 2, trend_ma_buffer) != 2)
      {
       printf("Error copying indicator buffers");
       return;
@@ -96,7 +95,7 @@ void OnTick()
         }
      }
 
-//--- get the close price of the last completed bar
+//--- get the close price of the last completed bar (bar 1)
    MqlRates rates[1];
    if(CopyRates(_Symbol, _Period, 1, 1, rates) != 1)
      {
@@ -106,11 +105,12 @@ void OnTick()
    double close_price = rates[0].close;
 
 //--- Trading logic
-// buffer[1] = value on the bar before the most recently completed bar
-// buffer[0] = value on the most recently completed bar
+// buffer[2] = value on the bar before the signal bar (bar 2)
+// buffer[1] = value on the signal bar (most recently completed, bar 1)
+// buffer[0] = value on the current, incomplete bar (bar 0)
 
-//--- check for buy signal (Fast TEMA crosses above Slow TEMA, and price is above Trend MA)
-   if(fast_tema_buffer[1] <= slow_tema_buffer[1] && fast_tema_buffer[0] > slow_tema_buffer[0] && close_price > trend_ma_buffer[0])
+//--- check for buy signal (Fast TEMA crosses above Slow TEMA on the bar that just closed)
+   if(fast_tema_buffer[2] <= slow_tema_buffer[2] && fast_tema_buffer[1] > slow_tema_buffer[1] && close_price > trend_ma_buffer[1])
      {
       if(!is_trade_open)
         {
@@ -123,8 +123,8 @@ void OnTick()
         }
      }
 
-//--- check for sell signal (Fast TEMA crosses below Slow TEMA, and price is below Trend MA)
-   if(fast_tema_buffer[1] >= slow_tema_buffer[1] && fast_tema_buffer[0] < slow_tema_buffer[0] && close_price < trend_ma_buffer[0])
+//--- check for sell signal (Fast TEMA crosses below Slow TEMA on the bar that just closed)
+   if(fast_tema_buffer[2] >= slow_tema_buffer[2] && fast_tema_buffer[1] < slow_tema_buffer[1] && close_price < trend_ma_buffer[1])
      {
       if(!is_trade_open)
         {
